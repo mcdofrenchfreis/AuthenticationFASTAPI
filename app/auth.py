@@ -11,6 +11,8 @@ from .database import get_db
 from .utils import get_password_hash, verify_password, create_access_token, validate_password_policy
 from .config import ACCESS_TOKEN_EXPIRE_DELTA, OTP_EXP_MINUTES
 from .mailer import send_otp_email, send_verification_email
+from .core.deps import get_auth_service
+from .services.auth_service import AuthService
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -27,76 +29,28 @@ def authenticate_user(db: Session, email: str, password: str) -> Optional[models
 
 
 @router.post("/register", response_model=schemas.UserOut)
-def register(payload: schemas.UserCreate, db: Session = Depends(get_db)):
-    existing = db.query(models.User).filter(models.User.email == payload.email).first()
-    if existing:
-        raise HTTPException(status_code=400, detail="Email already registered")
-    pw_err = validate_password_policy(payload.password)
-    if pw_err:
-        raise HTTPException(status_code=400, detail=pw_err)
-    user = models.User(
-        email=payload.email,
-        first_name=payload.first_name,
-        middle_name=payload.middle_name,
-        last_name=payload.last_name,
-        mobile=payload.mobile,
-        hashed_password=get_password_hash(payload.password),
-    )
-    db.add(user)
-    db.commit()
-    db.refresh(user)
-
-    # Create verification OTP and email it
-    code = f"{random.randint(0, 999999):06d}"
-    expires_at = datetime.utcnow() + timedelta(minutes=OTP_EXP_MINUTES)
-    otp = models.OtpCode(user_id=user.id, code=code, expires_at=expires_at, purpose="verify")
-    db.add(otp)
-    db.commit()
+def register(payload: schemas.UserCreate, service: AuthService = Depends(get_auth_service)):
     try:
-        send_verification_email(user.email, code)
-    except Exception:
-        pass
-    return user
+        user = service.register_user(payload)
+        return user
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 @router.post("/login", response_model=schemas.Token)
-def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
-    user = authenticate_user(db, form_data.username, form_data.password)
+def login(form_data: OAuth2PasswordRequestForm = Depends(), service: AuthService = Depends(get_auth_service)):
+    user = service.authenticate(form_data.username, form_data.password)
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
     if not user.is_verified:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account not verified")
-    access_token = create_access_token(
-        data={"sub": str(user.id), "email": user.email},
-        expires_delta=ACCESS_TOKEN_EXPIRE_DELTA,
-    )
-    return {
-        "access_token": access_token,
-        "token_type": "bearer",
-        "expires_in": int(ACCESS_TOKEN_EXPIRE_DELTA.total_seconds()),
-    }
+    token, expires_in = service.create_login_token(user)
+    return {"access_token": token, "token_type": "bearer", "expires_in": expires_in}
 
 
 @router.post("/forgot-password")
-def forgot_password(payload: schemas.ForgotPasswordRequest, db: Session = Depends(get_db)):
-    user = db.query(models.User).filter(models.User.email == payload.email).first()
-    if not user:
-        # Do not reveal whether email exists
-        return {"message": "If the email exists, an OTP has been sent."}
-
-    code = f"{random.randint(0, 999999):06d}"
-    expires_at = datetime.utcnow() + timedelta(minutes=OTP_EXP_MINUTES)
-
-    otp = models.OtpCode(user_id=user.id, code=code, expires_at=expires_at)
-    db.add(otp)
-    db.commit()
-
-    try:
-        send_otp_email(user.email, code)
-    except Exception:
-        # Do not leak errors; still respond generically
-        pass
-
+def forgot_password(payload: schemas.ForgotPasswordRequest, service: AuthService = Depends(get_auth_service)):
+    service.request_password_reset(payload.email)
     return {"message": "If the email exists, an OTP has been sent."}
 
 
@@ -117,68 +71,32 @@ def get_latest_valid_otp(db: Session, user_id: int, code: str, purpose: Optional
 
 
 @router.post("/verify-otp")
-def verify_otp(payload: schemas.VerifyOtpRequest, db: Session = Depends(get_db)):
-    user = db.query(models.User).filter(models.User.email == payload.email).first()
-    if not user:
-        raise HTTPException(status_code=400, detail="Invalid email or code")
-
-    otp = get_latest_valid_otp(db, user.id, payload.code, purpose="password_reset")
-    if not otp:
+def verify_otp(payload: schemas.VerifyOtpRequest, service: AuthService = Depends(get_auth_service)):
+    ok = service.verify_otp(payload.email, payload.code, purpose="password_reset")
+    if not ok:
         raise HTTPException(status_code=400, detail="Invalid or expired code")
-
-    # Mark as consumed so it cannot be reused
-    otp.consumed = True
-    db.commit()
-
     return {"message": "OTP verified"}
 
 
 @router.post("/reset-password")
-def reset_password(payload: schemas.ResetPasswordRequest, db: Session = Depends(get_db)):
-    user = db.query(models.User).filter(models.User.email == payload.email).first()
-    if not user:
+def reset_password(payload: schemas.ResetPasswordRequest, service: AuthService = Depends(get_auth_service)):
+    ok = service.reset_password(payload.email, payload.code, payload.new_password)
+    if not ok:
         raise HTTPException(status_code=400, detail="Invalid email or code")
-
-    otp = get_latest_valid_otp(db, user.id, payload.code)
-    if not otp:
-        raise HTTPException(status_code=400, detail="Invalid or expired code")
-
-    # Consume OTP and update password
-    otp.consumed = True
-    user.hashed_password = get_password_hash(payload.new_password)
-    db.commit()
-
     return {"message": "Password has been reset"}
 
 
 @router.post("/verify-account")
-def verify_account(payload: schemas.VerifyOtpRequest, db: Session = Depends(get_db)):
-    user = db.query(models.User).filter(models.User.email == payload.email).first()
-    if not user:
-        raise HTTPException(status_code=400, detail="Invalid email or code")
-    otp = get_latest_valid_otp(db, user.id, payload.code, purpose="verify")
-    if not otp:
+def verify_account(payload: schemas.VerifyOtpRequest, service: AuthService = Depends(get_auth_service)):
+    ok = service.verify_account(payload.email, payload.code)
+    if not ok:
         raise HTTPException(status_code=400, detail="Invalid or expired code")
-    otp.consumed = True
-    user.is_verified = True
-    db.commit()
     return {"message": "Account verified"}
 
 
 @router.post("/resend-verification")
-def resend_verification(payload: schemas.ForgotPasswordRequest, db: Session = Depends(get_db)):
-    user = db.query(models.User).filter(models.User.email == payload.email).first()
-    if not user:
-        return {"message": "If the email exists, a verification code has been sent."}
-    if user.is_verified:
+def resend_verification(payload: schemas.ForgotPasswordRequest, service: AuthService = Depends(get_auth_service)):
+    status_msg = service.resend_verification(payload.email)
+    if status_msg == "already":
         return {"message": "Account already verified"}
-    code = f"{random.randint(0, 999999):06d}"
-    expires_at = datetime.utcnow() + timedelta(minutes=OTP_EXP_MINUTES)
-    otp = models.OtpCode(user_id=user.id, code=code, expires_at=expires_at, purpose="verify")
-    db.add(otp)
-    db.commit()
-    try:
-        send_verification_email(user.email, code)
-    except Exception:
-        pass
     return {"message": "If the email exists, a verification code has been sent."}

@@ -13,6 +13,8 @@ from .database import get_db
 from .utils import verify_password, get_password_hash, create_access_token, decode_token
 from .config import ACCESS_TOKEN_EXPIRE_DELTA
 from .mailer import send_verification_email
+from .core.deps import get_auth_service
+from .services.auth_service import AuthService
 
 router = APIRouter(tags=["web"]) 
 
@@ -46,7 +48,7 @@ async def register_page(request: Request):
 
 
 @router.post("/register")
-async def register(request: Request, db: Session = Depends(get_db)):
+async def register(request: Request, db: Session = Depends(get_db), service: AuthService = Depends(get_auth_service)):
     form = await request.form()
     email = str(form.get("email", "")).strip()
     first_name = str(form.get("first_name", "")).strip()
@@ -87,28 +89,46 @@ async def register(request: Request, db: Session = Depends(get_db)):
             status_code=400,
         )
 
-    user = models.User(
-        email=email,
-        first_name=first_name,
-        middle_name=middle_name,
-        last_name=last_name,
-        mobile=mobile or None,
-        hashed_password=get_password_hash(password),
-    )
-    db.add(user)
-    db.commit()
-
-    # Create verification OTP and email it
-    from .models import OtpCode
-    code = f"{random.randint(0, 999999):06d}"
-    expires_at = datetime.utcnow() + timedelta(minutes=10)
-    otp = OtpCode(user_id=user.id, code=code, expires_at=expires_at, purpose="verify")
-    db.add(otp)
-    db.commit()
+    # Use service to register and send verification
     try:
-        send_verification_email(user.email, code)
-    except Exception:
-        pass
+        payload = schemas.UserCreate(
+            email=email,
+            first_name=first_name or None,
+            middle_name=middle_name or None,
+            last_name=last_name or None,
+            mobile=mobile or None,
+            password=password,
+        )
+    except Exception as e:
+        return templates.TemplateResponse(
+            "register.html",
+            {
+                "request": request,
+                "error": str(e),
+                "email": email,
+                "first_name": first_name,
+                "middle_name": middle_name,
+                "last_name": last_name,
+                "mobile": mobile,
+            },
+            status_code=400,
+        )
+    try:
+        user = service.register_user(payload)
+    except ValueError as e:
+        return templates.TemplateResponse(
+            "register.html",
+            {
+                "request": request,
+                "error": str(e),
+                "email": email,
+                "first_name": first_name,
+                "middle_name": middle_name,
+                "last_name": last_name,
+                "mobile": mobile,
+            },
+            status_code=400,
+        )
 
     return RedirectResponse(url=f"/verify-account?email={email}", status_code=status.HTTP_303_SEE_OTHER)
 
@@ -127,19 +147,19 @@ async def login_page(request: Request):
 
 
 @router.post("/login")
-async def login(request: Request, response: Response, db: Session = Depends(get_db)):
+async def login(request: Request, response: Response, db: Session = Depends(get_db), service: AuthService = Depends(get_auth_service)):
     form = await request.form()
     email = str(form.get("email", "")).strip()
     password = str(form.get("password", ""))
 
-    user = db.query(models.User).filter(models.User.email == email).first()
-    if not user or not verify_password(password, user.hashed_password):
+    user = service.authenticate(email, password)
+    if not user:
         return templates.TemplateResponse("login.html", {"request": request, "error": "Invalid credentials", "email": email}, status_code=401)
 
     if not user.is_verified:
         return templates.TemplateResponse("login.html", {"request": request, "error": "Please verify your account. We sent a code to your email.", "email": email}, status_code=403)
 
-    token = create_access_token({"sub": str(user.id), "email": user.email}, expires_delta=ACCESS_TOKEN_EXPIRE_DELTA)
+    token, _expires = service.create_login_token(user)
 
     resp = RedirectResponse(url="/dashboard", status_code=status.HTTP_303_SEE_OTHER)
     resp.set_cookie(
@@ -167,7 +187,7 @@ async def forgot_page(request: Request):
 
 
 @router.post("/forgot")
-async def forgot(request: Request, db: Session = Depends(get_db)):
+async def forgot(request: Request, db: Session = Depends(get_db), service: AuthService = Depends(get_auth_service)):
     from .models import OtpCode
     from datetime import datetime, timedelta
     import random
@@ -176,17 +196,7 @@ async def forgot(request: Request, db: Session = Depends(get_db)):
     form = await request.form()
     email = str(form.get("email", "")).strip()
 
-    user = db.query(models.User).filter(models.User.email == email).first()
-    if user:
-        code = f"{random.randint(0, 999999):06d}"
-        expires_at = datetime.utcnow() + timedelta(minutes=10)
-        otp = OtpCode(user_id=user.id, code=code, expires_at=expires_at)
-        db.add(otp)
-        db.commit()
-        try:
-            send_otp_email(user.email, code)
-        except Exception:
-            pass
+    service.request_password_reset(email)
     # Redirect to OTP verification step regardless of user existence
     return RedirectResponse(url=f"/verify-otp?email={email}&sent=1", status_code=status.HTTP_303_SEE_OTHER)
 
@@ -228,41 +238,29 @@ async def verify_account_page(request: Request):
 
 
 @router.post("/verify-account")
-async def post_verify_account(request: Request, db: Session = Depends(get_db)):
+async def post_verify_account(request: Request, db: Session = Depends(get_db), service: AuthService = Depends(get_auth_service)):
     form = await request.form()
     email = str(form.get("email", "")).strip()
     code = str(form.get("code", "")).strip()
     user = db.query(models.User).filter(models.User.email == email).first()
     if not user:
         return templates.TemplateResponse("verify_account.html", {"request": request, "error": "Invalid email or code", "email": email}, status_code=400)
-    from .auth import get_latest_valid_otp
-    otp = get_latest_valid_otp(db, user.id, code, purpose="verify")
-    if not otp:
+    ok = service.verify_account(email, code)
+    if not ok:
         return templates.TemplateResponse("verify_account.html", {"request": request, "error": "Invalid or expired code", "email": email}, status_code=400)
-    otp.consumed = True
-    user.is_verified = True
-    db.commit()
     return RedirectResponse(url="/login?verified=1", status_code=status.HTTP_303_SEE_OTHER)
 
 
 @router.post("/resend-verification")
-async def resend_verification(request: Request, db: Session = Depends(get_db)):
+async def resend_verification(request: Request, db: Session = Depends(get_db), service: AuthService = Depends(get_auth_service)):
     form = await request.form()
     email = str(form.get("email", "")).strip()
     user = db.query(models.User).filter(models.User.email == email).first()
-    if not user or user.is_verified:
-        # Generic message
+    if not user:
         return templates.TemplateResponse("verify_account.html", {"request": request, "email": email, "sent": True})
-    from .models import OtpCode
-    code = f"{random.randint(0, 999999):06d}"
-    expires_at = datetime.utcnow() + timedelta(minutes=10)
-    otp = OtpCode(user_id=user.id, code=code, expires_at=expires_at, purpose="verify")
-    db.add(otp)
-    db.commit()
-    try:
-        send_verification_email(user.email, code)
-    except Exception:
-        pass
+    status_msg = service.resend_verification(email)
+    if status_msg == "already":
+        return templates.TemplateResponse("verify_account.html", {"request": request, "email": email, "sent": True})
     return templates.TemplateResponse("verify_account.html", {"request": request, "email": email, "sent": True})
 
 
@@ -272,7 +270,7 @@ async def reset_page(request: Request):
 
 
 @router.post("/reset")
-async def reset_password(request: Request, db: Session = Depends(get_db)):
+async def reset_password(request: Request, db: Session = Depends(get_db), service: AuthService = Depends(get_auth_service)):
     form = await request.form()
     email = str(form.get("email", "")).strip()
     code = str(form.get("code", "")).strip()
@@ -302,18 +300,9 @@ async def reset_password(request: Request, db: Session = Depends(get_db)):
     if re.search(r"\s", new_password):
         return pw_invalid("Password must not contain spaces")
 
-    user = db.query(models.User).filter(models.User.email == email).first()
-    if not user:
+    ok = service.reset_password(email, code, new_password)
+    if not ok:
         return templates.TemplateResponse("reset_password.html", {"request": request, "error": "Invalid email or code", "email": email, "code": code}, status_code=400)
-
-    from .auth import get_latest_valid_otp
-    otp = get_latest_valid_otp(db, user.id, code)
-    if not otp:
-        return templates.TemplateResponse("reset_password.html", {"request": request, "error": "Invalid or expired code", "email": email, "code": code}, status_code=400)
-
-    otp.consumed = True
-    user.hashed_password = get_password_hash(new_password)
-    db.commit()
 
     return RedirectResponse(url="/login?reset=1", status_code=status.HTTP_303_SEE_OTHER)
 

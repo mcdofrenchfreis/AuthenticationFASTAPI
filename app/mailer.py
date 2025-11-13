@@ -12,22 +12,13 @@ from .config import (
     SMTP_FROM_NAME,
 )
 
-
-SMTP_HOST_OVERRIDE = "smtp.gmail.com"
-SMTP_PORT_OVERRIDE = 587
-SMTP_USER_OVERRIDE = "gagokayvan@gmail.com"
-SMTP_PASSWORD_OVERRIDE = "pmdt pkeo mwab dyuo"
-SMTP_FROM_OVERRIDE = "gagokayvan@gmail.com"
-SMTP_FROM_NAME_OVERRIDE = "AUTH"
-
-
 def send_email(to_email: str, subject: str, html_body: str, text_body: Optional[str] = None) -> None:
-    host = SMTP_HOST_OVERRIDE or SMTP_HOST
-    port = SMTP_PORT_OVERRIDE if SMTP_PORT_OVERRIDE is not None else SMTP_PORT
-    user = SMTP_USER_OVERRIDE or SMTP_USER
-    password = SMTP_PASSWORD_OVERRIDE or SMTP_PASSWORD
-    from_addr = SMTP_FROM_OVERRIDE or SMTP_FROM or user
-    from_name = SMTP_FROM_NAME_OVERRIDE or SMTP_FROM_NAME
+    host = SMTP_HOST
+    port = SMTP_PORT
+    user = SMTP_USER
+    password = SMTP_PASSWORD
+    from_addr = SMTP_FROM or user
+    from_name = SMTP_FROM_NAME
 
     if not (host and port and user and password):
         raise RuntimeError("SMTP is not configured. Please set SMTP credentials via overrides in mailer.py or environment variables.")
