@@ -1,0 +1,11 @@
+{% extends 'layout.html' %}
+{% block content %}
+<h2>Dashboard</h2>
+<p>Welcome, {{ user.full_name or user.email }}!</p>
+<div class="card">
+  <p><strong>Email:</strong> {{ user.email }}</p>
+  <p><strong>Active:</strong> {{ 'Yes' if user.is_active else 'No' }}</p>
+  <p><strong>Created:</strong> {{ user.created_at }}</p>
+</div>
+<p><a class="btn" href="/logout">Logout</a></p>
+{% endblock %}

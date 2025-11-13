@@ -1,0 +1,100 @@
+{% extends 'layout.html' %}
+{% block content %}
+<h2>Create an account</h2>
+{% if error %}<div class="alert">{{ error }}</div>{% endif %}
+<form method="post" class="grid-form" id="register-form">
+  <div class="field">
+    <label>First name</label>
+    <input type="text" name="first_name" value="{{ first_name or '' }}" required />
+  </div>
+  <div class="field">
+    <label>Middle name</label>
+    <input type="text" name="middle_name" value="{{ middle_name or '' }}" />
+  </div>
+  <div class="field">
+    <label>Last name</label>
+    <input type="text" name="last_name" value="{{ last_name or '' }}" required />
+  </div>
+
+  <div class="field span-3">
+    <label>Email address</label>
+    <input type="email" name="email" value="{{ email or '' }}" required />
+  </div>
+
+  <div class="field span-3">
+    <label>Mobile number (optional)</label>
+    <input type="tel" name="mobile" value="{{ mobile or '' }}" />
+  </div>
+
+  <div class="span-3 grid-2">
+    <div class="field">
+      <label>Password</label>
+      <input type="password" name="password" id="password" required />
+    </div>
+    <div class="field">
+      <label>Confirm password</label>
+      <input type="password" name="confirm_password" id="confirm_password" required />
+    </div>
+  </div>
+
+  <div id="pw-rules" class="note span-3">
+    Password must have:
+    <ul>
+      <li id="rule-length">At least 8 characters</li>
+      <li id="rule-lower">At least 1 lowercase letter</li>
+      <li id="rule-upper">At least 1 uppercase letter</li>
+      <li id="rule-number">At least 1 number</li>
+      <li id="rule-special">At least 1 special character</li>
+      <li id="rule-space">No spaces</li>
+      <li id="rule-match">Passwords must match</li>
+    </ul>
+  </div>
+
+  <div class="span-3">
+    <button type="submit" class="btn" id="submit-btn">Register</button>
+  </div>
+</form>
+
+<script>
+  (function() {
+    const pwd = document.getElementById('password');
+    const cpwd = document.getElementById('confirm_password');
+    const btn = document.getElementById('submit-btn');
+    const ruleLen = document.getElementById('rule-length');
+    const ruleLow = document.getElementById('rule-lower');
+    const ruleUpp = document.getElementById('rule-upper');
+    const ruleNum = document.getElementById('rule-number');
+    const ruleSpc = document.getElementById('rule-special');
+    const ruleSpcNo = document.getElementById('rule-space');
+    const ruleMat = document.getElementById('rule-match');
+
+    function validate() {
+      const v = pwd.value || '';
+      const c = cpwd.value || '';
+      const okLen = v.length >= 8;
+      const okLow = /[a-z]/.test(v);
+      const okUpp = /[A-Z]/.test(v);
+      const okNum = /\d/.test(v);
+      const okSpc = /[^A-Za-z0-9]/.test(v);
+      const okNoSpace = !/\s/.test(v);
+      const okMat = v.length > 0 && v === c;
+
+      ruleLen.style.color = okLen ? '#166534' : '#991b1b';
+      ruleLow.style.color = okLow ? '#166534' : '#991b1b';
+      ruleUpp.style.color = okUpp ? '#166534' : '#991b1b';
+      ruleNum.style.color = okNum ? '#166534' : '#991b1b';
+      ruleSpc.style.color = okSpc ? '#166534' : '#991b1b';
+      ruleSpcNo.style.color = okNoSpace ? '#166534' : '#991b1b';
+      ruleMat.style.color = okMat ? '#166534' : '#991b1b';
+
+      const allOk = okLen && okLow && okUpp && okNum && okSpc && okNoSpace && okMat;
+      btn.disabled = !allOk;
+      btn.style.opacity = allOk ? '1' : '0.6';
+    }
+
+    pwd.addEventListener('input', validate);
+    cpwd.addEventListener('input', validate);
+    validate();
+  })();
+</script>
+{% endblock %}

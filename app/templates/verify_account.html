@@ -1,0 +1,18 @@
+{% extends 'layout.html' %}
+{% block content %}
+<h2>Verify your account</h2>
+{% if error %}<div class="alert">{{ error }}</div>{% endif %}
+{% if sent %}<div class="note">If the email exists, a new verification code has been sent.</div>{% endif %}
+<form method="post" class="form">
+  <label>Email</label>
+  <input type="email" name="email" value="{{ email or '' }}" required />
+  <label>Verification code</label>
+  <input type="text" name="code" required />
+  <button type="submit" class="btn">Verify</button>
+</form>
+
+<form method="post" action="/resend-verification" class="form" style="margin-top:16px">
+  <input type="hidden" name="email" value="{{ email or '' }}" />
+  <button type="submit" class="btn">Resend code</button>
+</form>
+{% endblock %}

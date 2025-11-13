@@ -1,0 +1,26 @@
+{% extends 'layout.html' %}
+{% block content %}
+<h2>Login</h2>
+{% if registered %}<div class="note">Registration successful. Please login.</div>{% endif %}
+{% if reset %}<div class="note">Your password has been resetted, you can now login again.</div>{% endif %}
+{% if verified %}<div class="note">Your account is now verified. You can sign in.</div>{% endif %}
+{% if error %}<div class="alert">{{ error }}</div>{% endif %}
+<form method="post" class="form">
+  <label>Email</label>
+  <input type="email" name="email" value="{{ email or '' }}" required />
+  <label>Password</label>
+  <input type="password" name="password" required />
+  <button type="submit" class="btn">Login</button>
+</form>
+<p><a href="/forgot">Forgot your password?</a></p>
+<script>
+  (function(){
+    var reset = "{{ reset or '' }}";
+    if (reset) {
+      if (window.showToast) {
+        window.showToast('Your password has been resetted, you can now login again.');
+      }
+    }
+  })();
+</script>
+{% endblock %}

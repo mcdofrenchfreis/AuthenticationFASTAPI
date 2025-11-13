@@ -1,0 +1,13 @@
+{% extends 'layout.html' %}
+{% block content %}
+<h2>Verify OTP</h2>
+{% if sent %}<div class="note">We sent an OTP to your email if it exists.</div>{% endif %}
+{% if error %}<div class="alert">{{ error }}</div>{% endif %}
+<form method="post" class="form">
+  <label>Email</label>
+  <input type="email" name="email" value="{{ email or '' }}" required />
+  <label>OTP code</label>
+  <input type="text" name="code" required />
+  <button type="submit" class="btn">Verify</button>
+</form>
+{% endblock %}

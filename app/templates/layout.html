@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{{ title or 'Auth App' }}</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <header class="container">
+    <nav class="nav">
+      <a href="/" class="brand">Auth</a>
+      <div class="spacer"></div>
+      <a href="/login">Login</a>
+      <a href="/register">Register</a>
+      <a href="/forgot">Forgot Password</a>
+      <a href="/dashboard">Dashboard</a>
+      <a href="/logout">Logout</a>
+      <button id="theme-toggle" class="icon-btn" type="button" aria-pressed="false" title="Night Mode" aria-label="Night Mode">
+        <svg class="icon" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+          <path fill="currentColor" d="M21 12.79A9 9 0 0 1 11.21 3 7 7 0 1 0 21 12.79z"/>
+        </svg>
+      </button>
+    </nav>
+  </header>
+  <main class="container">
+    <div class="glass-panel">
+      {% block content %}{% endblock %}
+    </div>
+  </main>
+  <footer class="container foot"></footer>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script>
+    (function(){
+      const el = document.getElementById('toast');
+      if(!el) return;
+      window.showToast = function(msg, timeout){
+        el.textContent = msg || '';
+        el.classList.add('show');
+        const t = typeof timeout === 'number' ? timeout : 3500;
+        window.clearTimeout(el._t);
+        el._t = window.setTimeout(()=>{
+          el.classList.remove('show');
+        }, t);
+      };
+    })();
+  </script>
+  <script>
+    (function(){
+      const key = 'theme'; // values: 'light' | 'dark'
+      const body = document.body;
+      function applyTheme(val){
+        const isLight = val === 'light';
+        body.classList.toggle('theme-light', isLight);
+        const btn = document.getElementById('theme-toggle');
+        if(btn){
+          btn.setAttribute('aria-pressed', String(isLight));
+          const label = isLight ? 'Night Mode' : 'Day Mode';
+          btn.setAttribute('title', label);
+          btn.setAttribute('aria-label', label);
+        }
+      }
+      const saved = localStorage.getItem(key) || 'dark';
+      applyTheme(saved);
+      const btn = document.getElementById('theme-toggle');
+      if (btn){
+        btn.addEventListener('click', function(){
+          const cur = document.body.classList.contains('theme-light') ? 'light' : 'dark';
+          const next = cur === 'light' ? 'dark' : 'light';
+          localStorage.setItem(key, next);
+          applyTheme(next);
+        });
+      }
+    })();
+  </script>
+</body>
+</html>
