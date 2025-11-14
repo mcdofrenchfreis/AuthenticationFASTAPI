@@ -1,0 +1,42 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "fastapi-auth-kit"
+version = "0.1.0"
+description = "Modular FastAPI authentication service and routers"
+readme = "README.md"
+authors = [{ name = "Proxima" }]
+license = { text = "MIT" }
+requires-python = ">=3.10"
+dependencies = [
+  "fastapi>=0.110",
+  "sqlalchemy>=2.0",
+  "pydantic>=2.4",
+  "pydantic-settings>=2.0",
+  "passlib[bcrypt]>=1.7",
+  "python-jose[cryptography]>=3.3",
+]
+
+[project.optional-dependencies]
+web = [
+  "jinja2>=3.1"
+]
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+include = ["app", "app.*"]
+
+[tool.setuptools.package-data]
+app = [
+  "templates/*.html",
+  "templates/**/*.html",
+  "templates/**/*.css",
+  "templates/**/*.js",
+  "templates/**/*.png",
+  "templates/**/*.jpg",
+  "templates/**/*.svg",
+]

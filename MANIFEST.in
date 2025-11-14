@@ -1,0 +1,1 @@
+recursive-include app/templates *.html *.css *.js *.png *.jpg *.svg
