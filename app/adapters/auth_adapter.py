@@ -25,9 +25,7 @@ def register_user_api(payload: schemas.UserCreate, service: AuthService, backgro
     return user
 
 
-def login_api(username: str, password: str, service: AuthService) -> tuple[schemas.Token, int, int]:
-    from ..utils import create_access_token  # avoid circular import at module load
-
+def login_api(username: str, password: str, service: AuthService) -> tuple[str, int]:
     try:
         user = service.authenticate(username, password)
     except InvalidCredentialsError as e:

@@ -162,6 +162,10 @@ input:focus {
 }
 .btn:hover { filter: brightness(1.05); }
 .btn:active { transform: translateY(1px); }
+.theme-light .btn {
+  color: #ffffff;
+  text-shadow: 0 0 1px rgba(15,23,42,0.45);
+}
 .alert { 
   background: rgba(239,68,68,0.15); 
   color: #fecaca; 
@@ -210,6 +214,35 @@ label { font-size: 14px; color: #e5e7eb; font-weight: 500; }
 /* two-column subgrid for password row */
 .grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px 16px; }
 label { color: #e5e7eb; }
+
+/* index hero section */
+.hero {
+  text-align: center;
+}
+.hero p {
+  max-width: 520px;
+  margin: 0 auto 18px;
+  line-height: 1.6;
+}
+.hero-actions {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+.hero-actions .btn {
+  min-width: 160px;
+  text-align: center;
+}
+.muted {
+  font-size: 0.9rem;
+  opacity: 0.8;
+}
+.theme-light .muted {
+  color: #4b5563;
+  opacity: 0.9;
+}
 
 @media (max-width: 900px) {
   .container { max-width: 100%; }

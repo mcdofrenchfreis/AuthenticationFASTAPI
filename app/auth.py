@@ -4,7 +4,7 @@ from time import time
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
 
-from . import schemas, models
+from . import schemas
 from .core.deps import get_auth_service
 from .services.auth_service import AuthService
 from .adapters.auth_adapter import (

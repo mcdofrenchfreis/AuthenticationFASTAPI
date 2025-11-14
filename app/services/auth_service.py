@@ -12,7 +12,6 @@ from ..domain.errors import (
     PasswordPolicyError,
     InvalidCredentialsError,
     OtpInvalidOrExpiredError,
-    AccountAlreadyVerifiedError,
 )
 from ..domain.results import ResendVerificationResult, ResendVerificationStatus
 from ..core.settings import Settings
