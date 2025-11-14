@@ -46,6 +46,10 @@ def run_migrations():
         additions.append("ALTER TABLE users ADD COLUMN mobile VARCHAR(255)")
     if "is_verified" not in columns:
         additions.append("ALTER TABLE users ADD COLUMN is_verified BOOLEAN DEFAULT FALSE")
+    if "mfa_enabled" not in columns:
+        additions.append("ALTER TABLE users ADD COLUMN mfa_enabled BOOLEAN DEFAULT FALSE")
+    if "mfa_secret" not in columns:
+        additions.append("ALTER TABLE users ADD COLUMN mfa_secret VARCHAR(255)")
 
     if not additions:
         return

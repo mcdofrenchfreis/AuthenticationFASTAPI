@@ -38,6 +38,19 @@ class UserRepository:
         user.is_verified = True
         self.db.commit()
 
+    def set_mfa_secret(self, user: models.User, secret: str) -> None:
+        user.mfa_secret = secret
+        self.db.commit()
+
+    def set_mfa_enabled(self, user: models.User, enabled: bool) -> None:
+        user.mfa_enabled = enabled
+        self.db.commit()
+
+    def clear_mfa(self, user: models.User) -> None:
+        user.mfa_secret = None
+        user.mfa_enabled = False
+        self.db.commit()
+
 
 class OtpRepository:
     def __init__(self, db: Session):

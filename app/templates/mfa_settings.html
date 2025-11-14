@@ -1,0 +1,84 @@
+{% extends 'layout.html' %}
+{% block content %}
+<h2>MFA Settings</h2>
+{% if message == 'mfa_enabled' %}
+  <div class="alert success">Multi-factor authentication has been enabled.</div>
+{% elif message == 'mfa_disabled' %}
+  <div class="alert success">Multi-factor authentication has been disabled.</div>
+{% endif %}
+{% if error %}
+  <div class="alert">{{ error }}</div>
+{% endif %}
+
+<div class="note">
+  <p>MFA adds an extra layer of security by requiring a one-time code from an authenticator app in addition to your password.</p>
+</div>
+
+{% if user.mfa_enabled %}
+  <h3>Disable MFA</h3>
+  <form method="post" action="/settings/mfa/disable" class="grid-form">
+    <div class="field span-3">
+      <label>Current MFA code</label>
+      <input type="text" name="code" required maxlength="6" pattern="\d{6}" />
+    </div>
+    <div class="span-3">
+      <button type="submit" class="btn">Disable MFA</button>
+    </div>
+  </form>
+{% else %}
+  <h3>Enable MFA</h3>
+  {% if not secret %}
+    <form method="post" action="/settings/mfa/start" class="grid-form">
+      <div class="span-3">
+        <button type="submit" class="btn">Start MFA setup</button>
+      </div>
+    </form>
+  {% else %}
+    <div class="card span-3">
+      <h4>Connect your authenticator app</h4>
+      <p>Scan this QR code in your authenticator app or use the secret key below.</p>
+
+      <div class="grid" style="align-items: flex-start; gap: 18px; flex-wrap: wrap;">
+        <div>
+          <p><strong>QR Code</strong></p>
+          <img
+            src="https://api.qrserver.com/v1/create-qr-code/?size=220x220&data={{ otpauth_url | urlencode }}"
+            alt="MFA setup QR code"
+            width="220"
+            height="220"
+          />
+        </div>
+
+        <div style="min-width: 0; flex: 1;">
+          <p><strong>Secret key</strong></p>
+          <p>
+            <code>{{ secret }}</code>
+            <button type="button" class="btn" style="padding: 6px 10px; margin-left: 8px; font-size: 12px;"
+                    onclick="navigator.clipboard.writeText('{{ secret }}')">
+              Copy
+            </button>
+          </p>
+          <p style="font-size: 13px; opacity: 0.9; word-break: break-all;">
+            <strong>otpauth URL</strong><br />
+            <code>{{ otpauth_url }}</code>
+          </p>
+          <p style="font-size: 13px; opacity: 0.9;">
+            Use the QR code when possible. The secret key and URL are shown only once for this setup.
+          </p>
+        </div>
+      </div>
+
+      <p style="margin-top: 12px;">After adding the account in your app, enter a 6-digit code below to confirm.</p>
+    </div>
+    <form method="post" action="/settings/mfa/confirm" class="grid-form">
+      <div class="field span-3">
+        <label>Verification code</label>
+        <input type="text" name="code" required maxlength="6" pattern="\d{6}" />
+      </div>
+      <div class="span-3">
+        <button type="submit" class="btn">Confirm MFA setup</button>
+      </div>
+    </form>
+  {% endif %}
+{% endif %}
+{% endblock %}

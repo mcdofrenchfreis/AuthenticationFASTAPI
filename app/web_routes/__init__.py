@@ -5,5 +5,6 @@ from . import auth  # noqa: F401
 from . import reset  # noqa: F401
 from . import verify  # noqa: F401
 from . import dashboard  # noqa: F401
+from . import mfa  # noqa: F401
 
 __all__ = ["router"]

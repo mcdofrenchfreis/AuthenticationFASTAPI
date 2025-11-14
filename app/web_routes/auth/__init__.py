@@ -103,6 +103,11 @@ async def login(request: Request, response: Response, service: AuthService = Dep
     if not user.is_verified:
         return templates.TemplateResponse("login.html", {"request": request, "error": "Please verify your account. We sent a code to your email.", "email": email}, status_code=403)
 
+    # If MFA is enabled for this user, redirect to second-step verification
+    if user.mfa_enabled:
+        mfa_token = service.create_mfa_token(user)
+        return RedirectResponse(url=f"/login/mfa?token={mfa_token}", status_code=status.HTTP_303_SEE_OTHER)
+
     token, _expires = service.create_login_token(user)
 
     resp = RedirectResponse(url="/dashboard", status_code=status.HTTP_303_SEE_OTHER)
@@ -114,4 +119,40 @@ async def login(request: Request, response: Response, service: AuthService = Dep
 async def logout():
     resp = RedirectResponse(url="/", status_code=status.HTTP_303_SEE_OTHER)
     clear_login_cookie(resp)
+    return resp
+
+
+@router.get("/login/mfa", response_class=HTMLResponse)
+async def login_mfa_page(request: Request, token: str | None = None):
+    if not token:
+        return RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
+    return templates.TemplateResponse("login_mfa.html", {"request": request, "mfa_token": token, "error": None})
+
+
+@router.post("/login/mfa")
+async def login_mfa(request: Request, response: Response, service: AuthService = Depends(get_auth_service)):
+    form = await request.form()
+    mfa_token = str(form.get("mfa_token", ""))
+    code = str(form.get("code", "")).strip()
+
+    user = service.get_user_from_mfa_token(mfa_token)
+    if not user:
+        return templates.TemplateResponse(
+            "login_mfa.html",
+            {"request": request, "mfa_token": mfa_token, "error": "Invalid or expired MFA token"},
+            status_code=400,
+        )
+
+    try:
+        service.verify_mfa_code(user, code)
+    except Exception:
+        return templates.TemplateResponse(
+            "login_mfa.html",
+            {"request": request, "mfa_token": mfa_token, "error": "Invalid or expired code"},
+            status_code=400,
+        )
+
+    token, _expires = service.create_login_token(user)
+    resp = RedirectResponse(url="/dashboard", status_code=status.HTTP_303_SEE_OTHER)
+    set_login_cookie(resp, token)
     return resp

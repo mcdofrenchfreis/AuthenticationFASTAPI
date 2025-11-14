@@ -1,0 +1,16 @@
+{% extends 'layout.html' %}
+{% block content %}
+<h2>Verify Login</h2>
+{% if error %}<div class="alert">{{ error }}</div>{% endif %}
+<p>Enter the 6-digit code from your authenticator app to complete sign-in.</p>
+<form method="post" class="grid-form">
+  <input type="hidden" name="mfa_token" value="{{ mfa_token }}" />
+  <div class="field span-3">
+    <label>Authentication code</label>
+    <input type="text" name="code" required maxlength="6" pattern="\d{6}" />
+  </div>
+  <div class="span-3">
+    <button type="submit" class="btn">Verify</button>
+  </div>
+</form>
+{% endblock %}

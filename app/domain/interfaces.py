@@ -30,6 +30,15 @@ class UserRepositoryProtocol(Protocol):
     def mark_verified(self, user: models.User) -> None:
         ...
 
+    def set_mfa_secret(self, user: models.User, secret: str) -> None:
+        ...
+
+    def set_mfa_enabled(self, user: models.User, enabled: bool) -> None:
+        ...
+
+    def clear_mfa(self, user: models.User) -> None:
+        ...
+
 
 class OtpRepositoryProtocol(Protocol):
     def create_otp(self, *, user_id: int, code: str, expires_at: datetime, purpose: str = "password_reset") -> models.OtpCode:

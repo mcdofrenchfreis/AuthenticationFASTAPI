@@ -15,6 +15,11 @@ from .adapters.auth_adapter import (
     verify_account_api,
     request_password_reset_api,
     resend_verification_api,
+    mfa_setup_api,
+    mfa_confirm_api,
+    mfa_disable_api,
+    mfa_login_start_api,
+    mfa_login_verify_api,
 )
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -133,3 +138,46 @@ def verify_account(payload: schemas.VerifyOtpRequest, service: AuthService = Dep
 def resend_verification(payload: schemas.ForgotPasswordRequest, background_tasks: BackgroundTasks, service: AuthService = Depends(get_auth_service)):
     result = resend_verification_api(payload.email, service, background_tasks)
     return result
+
+
+@router.post("/mfa/setup", response_model=schemas.MfaSetupResponse)
+def mfa_setup(payload: schemas.MfaSetupRequest, service: AuthService = Depends(get_auth_service)):
+    """Authenticate the user and start TOTP MFA setup.
+
+    This returns a secret and otpauth URL that can be used to configure an authenticator app.
+    """
+    data = mfa_setup_api(payload.email, payload.password, service)
+    return data
+
+
+@router.post("/mfa/confirm")
+def mfa_confirm(payload: schemas.MfaCodeRequest, service: AuthService = Depends(get_auth_service)):
+    """Confirm TOTP MFA setup by verifying the provided code."""
+    mfa_confirm_api(payload.email, payload.password, payload.code, service)
+    return {"message": "MFA has been enabled for this account."}
+
+
+@router.post("/mfa/disable")
+def mfa_disable(payload: schemas.MfaCodeRequest, service: AuthService = Depends(get_auth_service)):
+    """Disable TOTP MFA for the authenticated user after verifying a code."""
+    mfa_disable_api(payload.email, payload.password, payload.code, service)
+    return {"message": "MFA has been disabled for this account."}
+
+
+@router.post("/login/mfa/start", response_model=schemas.MfaLoginStartResponse)
+def login_mfa_start(payload: schemas.UserLogin, service: AuthService = Depends(get_auth_service)):
+    """Start an MFA login flow.
+
+    This endpoint is for accounts with MFA enabled. It verifies the user's
+    credentials and returns a short-lived MFA token that must be used together
+    with a TOTP code at `/auth/login/mfa/verify` to obtain an access token.
+    """
+    data = mfa_login_start_api(payload.email, payload.password, service)
+    return data
+
+
+@router.post("/login/mfa/verify", response_model=schemas.Token)
+def login_mfa_verify(payload: schemas.MfaLoginVerifyRequest, service: AuthService = Depends(get_auth_service)):
+    """Complete an MFA login using a one-time MFA token and TOTP code."""
+    token, expires_in = mfa_login_verify_api(payload.mfa_token, payload.code, service)
+    return {"access_token": token, "token_type": "bearer", "expires_in": expires_in}

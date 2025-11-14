@@ -17,6 +17,8 @@ class User(Base):
     hashed_password = Column(String, nullable=False)
     is_active = Column(Boolean, default=True)
     is_verified = Column(Boolean, default=False)
+    mfa_enabled = Column(Boolean, default=False)
+    mfa_secret = Column(String, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     otps = relationship("OtpCode", back_populates="user")

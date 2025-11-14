@@ -1,8 +1,10 @@
 from __future__ import annotations
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 import random
 from typing import Optional, Tuple
+
+import pyotp
 
 from ..domain.interfaces import UserRepositoryProtocol, OtpRepositoryProtocol
 from ..domain.errors import (
@@ -79,6 +81,84 @@ class AuthService:
         except (TypeError, ValueError):
             return None
         return self.user_repo.get_by_id(user_id)
+
+    def create_mfa_token(self, user: models.User) -> str:
+        """Create a short-lived token used only for MFA login continuation."""
+        # 5 minutes expiry for MFA continuation
+        exp_delta = timedelta(minutes=5)
+        return create_access_token(
+            data={"sub": str(user.id), "email": user.email, "mfa": True},
+            expires_delta=exp_delta,
+        )
+
+    def get_user_from_mfa_token(self, token: str) -> Optional[models.User]:
+        """Resolve a user from an MFA token, ensuring it is marked as an MFA token."""
+        payload = decode_token(token)
+        if not payload:
+            return None
+        if not payload.get("mfa"):
+            return None
+        sub = payload.get("sub")
+        if not sub:
+            return None
+        try:
+            user_id = int(sub)
+        except (TypeError, ValueError):
+            return None
+        return self.user_repo.get_by_id(user_id)
+
+    # MFA (TOTP) helpers
+    def _ensure_mfa_secret(self, user: models.User) -> str:
+        """Ensure the user has an MFA secret and return it.
+
+        This does not enable MFA by itself; callers should set `mfa_enabled` when
+        appropriate (e.g. after successful confirmation).
+        """
+        if user.mfa_secret:
+            return user.mfa_secret
+        secret = pyotp.random_base32()
+        self.user_repo.set_mfa_secret(user, secret)
+        return secret
+
+    def begin_mfa_setup(self, user: models.User, issuer: Optional[str] = None) -> Tuple[str, str]:
+        """Begin TOTP MFA setup for a user.
+
+        Returns a tuple of (secret, otpauth_url) that can be used to show a QR
+        code or manual setup instructions in the client.
+        """
+        secret = self._ensure_mfa_secret(user)
+        issuer_name = issuer or "Auth App"
+        totp = pyotp.TOTP(secret)
+        otpauth_url = totp.provisioning_uri(name=user.email, issuer_name=issuer_name)
+        return secret, otpauth_url
+
+    def confirm_mfa_setup(self, user: models.User, code: str) -> None:
+        """Confirm TOTP MFA setup by verifying a code and enabling MFA on success."""
+        if not user.mfa_secret:
+            # No secret to verify against; treat as invalid/expired.
+            raise OtpInvalidOrExpiredError("MFA is not in a state that can be confirmed")
+        totp = pyotp.TOTP(user.mfa_secret)
+        if not totp.verify(code, valid_window=1):
+            raise OtpInvalidOrExpiredError("Invalid or expired MFA code")
+        self.user_repo.set_mfa_enabled(user, True)
+
+    def disable_mfa(self, user: models.User, code: str) -> None:
+        """Disable TOTP MFA for a user after verifying the current code."""
+        if not user.mfa_secret:
+            # Already disabled; treat as invalid request.
+            raise OtpInvalidOrExpiredError("MFA is not enabled for this account")
+        totp = pyotp.TOTP(user.mfa_secret)
+        if not totp.verify(code, valid_window=1):
+            raise OtpInvalidOrExpiredError("Invalid or expired MFA code")
+        self.user_repo.clear_mfa(user)
+
+    def verify_mfa_code(self, user: models.User, code: str) -> None:
+        """Verify a TOTP MFA code for login or other protected operations."""
+        if not user.mfa_secret or not user.mfa_enabled:
+            raise OtpInvalidOrExpiredError("MFA is not enabled for this account")
+        totp = pyotp.TOTP(user.mfa_secret)
+        if not totp.verify(code, valid_window=1):
+            raise OtpInvalidOrExpiredError("Invalid or expired MFA code")
 
     # OTP flows
     def request_password_reset(self, email: str) -> Optional[str]:

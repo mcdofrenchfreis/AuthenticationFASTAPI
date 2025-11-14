@@ -7,5 +7,8 @@
   <p><strong>Active:</strong> {{ 'Yes' if user.is_active else 'No' }}</p>
   <p><strong>Created:</strong> {{ user.created_at }}</p>
 </div>
-<p><a class="btn" href="/logout">Logout</a></p>
+<p>
+  <a class="btn" href="/settings/mfa">MFA Settings</a>
+  <a class="btn" href="/logout">Logout</a>
+</p>
 {% endblock %}
