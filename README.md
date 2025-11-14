@@ -9,7 +9,7 @@ A full-stack authentication starter built with FastAPI, SQLAlchemy, and Jinja2 t
 - Login with cookie-based JWT
 - Forgot password with OTP verification, then password reset
 - Password policy enforced (client and server)
-- SQLAlchemy ORM; default SQLite, configurable to MySQL (PyMySQL)
+- SQLAlchemy ORM with PostgreSQL (psycopg2)
 - Lightweight auto-migration for new user columns
 
 ## Tech Stack
@@ -17,7 +17,6 @@ A full-stack authentication starter built with FastAPI, SQLAlchemy, and Jinja2 t
 - SQLAlchemy 2.x
 - passlib[bcrypt] (bcrypt pinned for compatibility)
 - python-jose (JWT)
-- PyMySQL (optional, for MySQL)
 
 ## Quickstart (Windows)
 1. Clone and open this folder in your IDE.
@@ -26,7 +25,7 @@ A full-stack authentication starter built with FastAPI, SQLAlchemy, and Jinja2 t
    - `.\.venv311\Scripts\activate`
 3. Install dependencies:
    - `pip install -r requirements.txt`
-4. Configure environment (optional, see Environment below). Defaults work with SQLite and require SMTP config for emails.
+4. Configure environment (optional, see Environment below). Defaults assume PostgreSQL and require SMTP config for emails.
 5. Run the app:
    - PowerShell: `./run.ps1`
    - Or directly: `python -m uvicorn app.main:app --reload`
@@ -56,8 +55,7 @@ Recommended variables to set via your shell or a `.env` loader:
 - `AUTH_SECRET_KEY` — secret for JWT signing
 - `AUTH_ACCESS_TOKEN_EXPIRE_MINUTES` — default 60
 - `AUTH_OTP_EXP_MINUTES` — default 10
-- `DATABASE_URL` — default `sqlite:///./auth.db`
-  - MySQL example: `mysql+pymysql://user:pass@localhost:3306/auth_db`
+- `DATABASE_URL` — default PostgreSQL DSN, e.g. `postgresql+psycopg2://user:password@localhost:5432/auth_db`
 - SMTP (if you intend to send emails):
   - `SMTP_HOST` (default `smtp.gmail.com`)
   - `SMTP_PORT` (default `587`)
@@ -71,8 +69,8 @@ Notes:
 - For Gmail, set up an App Password and use STARTTLS on port 587.
 
 ## Database
-- Default: SQLite file `auth.db` in project root.
-- SQLAlchemy engine is configured via `DATABASE_URL`. If it starts with `sqlite`, we enable `check_same_thread=False`.
+- PostgreSQL is the supported database.
+- SQLAlchemy engine is configured via `DATABASE_URL` (e.g., `postgresql+psycopg2://user:password@localhost:5432/auth_db`).
 - On startup, `Base.metadata.create_all()` runs and a small `run_migrations()` helper adds any new columns (idempotent) to the `users` table.
 
 ## Password Policy

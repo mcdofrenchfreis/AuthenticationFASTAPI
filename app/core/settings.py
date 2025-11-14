@@ -13,7 +13,7 @@ class Settings(BaseSettings):
     AUTH_OTP_EXP_MINUTES: int = Field(default=10, env="AUTH_OTP_EXP_MINUTES")
 
     # Database
-    DATABASE_URL: str = Field(default="sqlite:///./auth.db", env="DATABASE_URL")
+    DATABASE_URL: str = Field(default="postgresql+psycopg2://user:password@localhost:5432/auth_db", env="DATABASE_URL")
 
     # SMTP
     SMTP_HOST: str = Field(default="smtp.gmail.com", env="SMTP_HOST")

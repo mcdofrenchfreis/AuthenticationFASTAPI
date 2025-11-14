@@ -5,12 +5,13 @@ from sqlalchemy import inspect as sa_inspect
 
 from .core.settings import settings
 
-# Create engine for the configured database (MySQL recommended)
-is_sqlite = settings.DATABASE_URL.startswith("sqlite")
+if not settings.DATABASE_URL.startswith("postgresql"):
+    raise ValueError("Only PostgreSQL is supported. Set DATABASE_URL to a postgresql+psycopg2:// URL.")
+
+# Create engine for the configured PostgreSQL database
 engine = create_engine(
     settings.DATABASE_URL,
     pool_pre_ping=True,
-    connect_args={"check_same_thread": False} if is_sqlite else {},
 )
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
@@ -34,7 +35,6 @@ def run_migrations():
         return
 
     additions = []
-    dialect = engine.dialect.name
     # Use a generic VARCHAR(255) for new columns
     if "first_name" not in columns:
         additions.append("ALTER TABLE users ADD COLUMN first_name VARCHAR(255)")
@@ -45,8 +45,7 @@ def run_migrations():
     if "mobile" not in columns:
         additions.append("ALTER TABLE users ADD COLUMN mobile VARCHAR(255)")
     if "is_verified" not in columns:
-        # BOOLEAN works across sqlite and others; sqlite stores as integer 0/1
-        additions.append("ALTER TABLE users ADD COLUMN is_verified BOOLEAN DEFAULT 0")
+        additions.append("ALTER TABLE users ADD COLUMN is_verified BOOLEAN DEFAULT FALSE")
 
     if not additions:
         return
