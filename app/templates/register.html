@@ -37,7 +37,7 @@
     </div>
   </div>
 
-  <div id="pw-rules" class="note span-3">
+  <div id="pw-rules" class="note span-3" style="display:none;">
     Password must have:
     <ul>
       <li id="rule-length">At least 8 characters</li>
@@ -60,6 +60,7 @@
     const pwd = document.getElementById('password');
     const cpwd = document.getElementById('confirm_password');
     const btn = document.getElementById('submit-btn');
+    const rulesBox = document.getElementById('pw-rules');
     const ruleLen = document.getElementById('rule-length');
     const ruleLow = document.getElementById('rule-lower');
     const ruleUpp = document.getElementById('rule-upper');
@@ -90,10 +91,20 @@
       const allOk = okLen && okLow && okUpp && okNum && okSpc && okNoSpace && okMat;
       btn.disabled = !allOk;
       btn.style.opacity = allOk ? '1' : '0.6';
+
+      const hasFocus = document.activeElement === pwd || document.activeElement === cpwd;
+      const hasValue = v.length > 0 || c.length > 0;
+      if (rulesBox) {
+        rulesBox.style.display = (hasFocus || hasValue) ? 'block' : 'none';
+      }
     }
 
     pwd.addEventListener('input', validate);
     cpwd.addEventListener('input', validate);
+    pwd.addEventListener('focus', validate);
+    cpwd.addEventListener('focus', validate);
+    pwd.addEventListener('blur', validate);
+    cpwd.addEventListener('blur', validate);
     validate();
   })();
 </script>
