@@ -7,6 +7,7 @@ A full-stack authentication starter built with FastAPI, SQLAlchemy, and Jinja2 t
 - Day/Night theme toggle with localStorage persistence
 - Registration with email verification (OTP)
 - Login with cookie-based JWT
+- Optional TOTP-based MFA for accounts (enable/disable via settings page)
 - Forgot password with OTP verification, then password reset
 - Password policy enforced (client and server)
 - SQLAlchemy ORM with PostgreSQL (psycopg2)
@@ -19,6 +20,7 @@ A full-stack authentication starter built with FastAPI, SQLAlchemy, and Jinja2 t
 - SQLAlchemy 2.x
 - passlib[bcrypt] (bcrypt pinned for compatibility)
 - python-jose (JWT)
+- pyotp (TOTP codes for MFA)
 
 ## Quickstart (Windows)
 1. Clone and open this folder in your IDE.
@@ -99,6 +101,11 @@ Enforced on both client and server (registration and reset):
 ## Web Flow
 - Registration: `/register` (POST creates user, sends verification code) → Verify `/verify-account` → Login `/login`
 - Login: `/login` sets an HTTP-only JWT cookie; `/dashboard` requires cookie
+- MFA Settings: `/settings/mfa` for enabling/disabling TOTP MFA on the current account
+  - Start setup: `/settings/mfa/start` (POST)
+  - Confirm setup: `/settings/mfa/confirm` (POST with TOTP code)
+  - Disable MFA: `/settings/mfa/disable` (POST with TOTP code)
+- If MFA is enabled for an account, `/login` redirects to `/login/mfa` for the second factor step
 - Forgot Password: `/forgot` → Verify OTP `/verify-otp` → Reset `/reset`
 - Toasts: used for success states (e.g., reset complete) and theme toggle exists in the header
 - Day/Night: icon toggle in header; persists choice in localStorage
@@ -112,6 +119,11 @@ Base prefix: `/auth`
 - `POST /auth/reset-password` — reset with valid OTP
 - `POST /auth/verify-account` — verify account with OTP
 - `POST /auth/resend-verification` — resend verification OTP
+- `POST /auth/mfa/setup` — start MFA setup with email/password; returns TOTP secret and `otpauth://` URL
+- `POST /auth/mfa/confirm` — confirm MFA setup with a TOTP code and enable MFA on the account
+- `POST /auth/mfa/disable` — disable MFA after verifying a TOTP code
+- `POST /auth/login/mfa/start` — start an MFA login flow; returns a short-lived MFA token
+- `POST /auth/login/mfa/verify` — complete MFA login using the MFA token and TOTP code; returns access token
 
 ## Running Notes
 - Hot reload is enabled when using `--reload` or `./run.ps1`.
