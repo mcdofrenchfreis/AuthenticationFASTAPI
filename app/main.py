@@ -5,7 +5,7 @@ from fastapi.staticfiles import StaticFiles
 from .database import Base, engine, run_migrations
 from .models import *  # noqa: F401,F403
 from .auth import router as auth_router
-from .web import router as web_router
+from .web_routes import router as web_router
 
 
 def create_app() -> FastAPI:
