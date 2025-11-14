@@ -1,6 +1,7 @@
 from __future__ import annotations
 from datetime import datetime, timedelta
 from typing import Optional
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from .. import models
@@ -11,14 +12,19 @@ class UserRepository:
         self.db = db
 
     def get_by_email(self, email: str) -> Optional[models.User]:
-        return self.db.query(models.User).filter(models.User.email == email).first()
+        normalized = email.lower()
+        return (
+            self.db.query(models.User)
+            .filter(func.lower(models.User.email) == normalized)
+            .first()
+        )
 
     def get_by_id(self, user_id: int) -> Optional[models.User]:
         return self.db.query(models.User).filter(models.User.id == user_id).first()
 
     def create_user(self, *, email: str, first_name: Optional[str], middle_name: Optional[str], last_name: Optional[str], mobile: Optional[str], hashed_password: str) -> models.User:
         user = models.User(
-            email=email,
+            email=email.lower(),
             first_name=first_name,
             middle_name=middle_name,
             last_name=last_name,

@@ -8,8 +8,8 @@
   <p><strong>MFA:</strong> {{ 'Enabled' if user.mfa_enabled else 'Disabled' }}</p>
   <p><strong>Created:</strong> {{ user.created_at }}</p>
 </div>
-<p>
+<div style="text-align: center; margin-top: 1.5rem;">
   <a class="btn" href="/settings/mfa">MFA Settings</a>
   <a class="btn" href="/logout">Logout</a>
-</p>
+</div>
 {% endblock %}
