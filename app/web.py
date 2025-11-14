@@ -2,6 +2,7 @@ from datetime import datetime, timedelta
 from typing import Optional
 import re
 import random
+from importlib import resources as importlib_resources
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -17,7 +18,8 @@ from .services.auth_service import AuthService
 
 router = APIRouter(tags=["web"]) 
 
-templates = Jinja2Templates(directory="app/templates")
+_templates_dir = importlib_resources.files("app").joinpath("templates")
+templates = Jinja2Templates(directory=str(_templates_dir))
 
 AUTH_COOKIE_NAME = "access_token"
 COOKIE_MAX_AGE = int(settings.access_token_expire_delta.total_seconds())
