@@ -11,6 +11,8 @@ A full-stack authentication starter built with FastAPI, SQLAlchemy, and Jinja2 t
 - Password policy enforced (client and server)
 - SQLAlchemy ORM with PostgreSQL (psycopg2)
 - Lightweight auto-migration for new user columns
+- Simple login rate limiting (per IP/email) to mitigate brute-force attacks
+- Configurable security (ENV-aware settings, cookie flags, JWT expiry)
 
 ## Tech Stack
 - FastAPI, Starlette, Jinja2
@@ -51,11 +53,19 @@ A full-stack authentication starter built with FastAPI, SQLAlchemy, and Jinja2 t
 ## Environment
 Configuration is centrally managed in `app/core/settings.py` using Pydantic BaseSettings. It automatically reads environment variables and, if present, a `.env` file at the project root.
 
-Recommended variables to set via your shell or a `.env` loader:
-- `AUTH_SECRET_KEY` — secret for JWT signing
-- `AUTH_ACCESS_TOKEN_EXPIRE_MINUTES` — default 60
-- `AUTH_OTP_EXP_MINUTES` — default 10
-- `DATABASE_URL` — default PostgreSQL DSN, e.g. `postgresql+psycopg2://user:password@localhost:5432/auth_db`
+Core settings you will typically configure via your shell or a `.env` file:
+
+- `ENV` — environment name. Defaults to `dev`.
+  - In `dev`, security validation is relaxed for convenience.
+  - In non-`dev` (e.g. `prod`), startup will fail if critical settings are unsafe (weak secret, insecure cookies).
+- `AUTH_SECRET_KEY` — secret for JWT signing.
+  - In non-dev environments this must be a long, random value (>= 32 chars) and not the default.
+- `AUTH_ACCESS_TOKEN_EXPIRE_MINUTES` — default 60.
+- `AUTH_OTP_EXP_MINUTES` — default 10.
+- `AUTH_COOKIE_SECURE` — `False` in dev, **must be `True` in non-dev** (enforced by `validate_for_runtime`).
+- `AUTH_COOKIE_SAMESITE` — cookie SameSite mode, default `lax`.
+- `AUTH_ISSUER` — optional JWT issuer string.
+- `DATABASE_URL` — PostgreSQL DSN, e.g. `postgresql+psycopg2://user:password@localhost:5432/auth_db`.
 - SMTP (if you intend to send emails):
   - `SMTP_HOST` (default `smtp.gmail.com`)
   - `SMTP_PORT` (default `587`)
@@ -65,8 +75,11 @@ Recommended variables to set via your shell or a `.env` loader:
   - `SMTP_FROM_NAME` (defaults to `Auth App`)
 
 Notes:
+
 - Do not hardcode secrets in source code. Prefer setting them via `.env` or environment variables.
 - For Gmail, set up an App Password and use STARTTLS on port 587.
+
+On startup, `settings.validate_for_runtime()` enforces that non-dev environments use a strong `AUTH_SECRET_KEY` and secure cookies.
 
 ## Database
 - PostgreSQL is the supported database.
@@ -109,4 +122,23 @@ Base prefix: `/auth`
 ## Security
 - Do not commit real SMTP credentials or JWT secrets to source control.
 - Use App Passwords for Gmail.
-- Consider setting `secure=True` on cookies and serving behind HTTPS in production.
+- Always run with `ENV=prod` (or similar) and a strong `AUTH_SECRET_KEY` in production.
+- In production, `AUTH_COOKIE_SECURE` **must** be `True` so cookies are only sent over HTTPS (this is enforced at startup).
+- A simple in-memory login rate limiter is enabled for `/auth/login` to slow down brute-force attempts.
+
+## Architecture Overview
+
+This project is structured in layers to keep concerns separated and make reuse/testability easier:
+
+- **Domain layer**
+  - `app/services/auth_service.py` — core authentication and OTP flows, using repositories and raising domain-specific errors.
+  - `app/domain/interfaces.py` — repository protocols.
+  - `app/domain/errors.py` — auth-specific exception types (e.g. `InvalidCredentialsError`, `OtpInvalidOrExpiredError`).
+- **Adapters**
+  - `app/adapters/auth_adapter.py` — JSON API adapter: maps domain errors to `HTTPException`, schedules verification/reset emails using FastAPI `BackgroundTasks`.
+  - `app/adapters/web_auth_adapter.py` — Web adapter: used by Jinja2 routes to call `AuthService`, handle errors, and schedule emails via `BackgroundTasks`.
+- **Transport/UI**
+  - `app/auth.py` — JSON API endpoints under `/auth/*` (thin wiring + rate limiting).
+  - `app/web_routes/*` — Web routes (form handling + template rendering) that delegate auth logic to adapters.
+
+Email sending is centralized in `app/infrastructure/mailer.py` and is invoked asynchronously via `BackgroundTasks` for registration, forgot-password, and resend-verification flows.
