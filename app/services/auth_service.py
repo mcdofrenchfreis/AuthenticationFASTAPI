@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 import random
 from typing import Optional, Tuple
 
-from ..domain.repositories import UserRepository, OtpRepository
+from ..domain.interfaces import UserRepositoryProtocol, OtpRepositoryProtocol
 from ..core.settings import Settings
 from .. import models, schemas
 from ..utils import (
@@ -19,8 +19,8 @@ from ..infrastructure.mailer import send_otp_email, send_verification_email
 
 @dataclass
 class AuthService:
-    user_repo: UserRepository
-    otp_repo: OtpRepository
+    user_repo: UserRepositoryProtocol
+    otp_repo: OtpRepositoryProtocol
     settings: Settings
 
     # Users
