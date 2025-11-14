@@ -10,9 +10,8 @@ from sqlalchemy.orm import Session
 
 from . import models, schemas
 from .database import get_db
-from .utils import verify_password, get_password_hash, create_access_token, decode_token
+from .utils import decode_token
 from .core.settings import settings
-from .mailer import send_verification_email
 from .core.deps import get_auth_service
 from .services.auth_service import AuthService
 
@@ -48,7 +47,7 @@ async def register_page(request: Request):
 
 
 @router.post("/register")
-async def register(request: Request, db: Session = Depends(get_db), service: AuthService = Depends(get_auth_service)):
+async def register(request: Request, service: AuthService = Depends(get_auth_service)):
     form = await request.form()
     email = str(form.get("email", "")).strip()
     first_name = str(form.get("first_name", "")).strip()
@@ -58,21 +57,7 @@ async def register(request: Request, db: Session = Depends(get_db), service: Aut
     password = str(form.get("password", ""))
     confirm_password = str(form.get("confirm_password", ""))
 
-    existing = db.query(models.User).filter(models.User.email == email).first()
-    if existing:
-        return templates.TemplateResponse(
-            "register.html",
-            {
-                "request": request,
-                "error": "Email already registered",
-                "email": email,
-                "first_name": first_name,
-                "middle_name": middle_name,
-                "last_name": last_name,
-                "mobile": mobile,
-            },
-            status_code=400,
-        )
+    # Existence and validation handled in service
 
     if password != confirm_password:
         return templates.TemplateResponse(
@@ -147,7 +132,7 @@ async def login_page(request: Request):
 
 
 @router.post("/login")
-async def login(request: Request, response: Response, db: Session = Depends(get_db), service: AuthService = Depends(get_auth_service)):
+async def login(request: Request, response: Response, service: AuthService = Depends(get_auth_service)):
     form = await request.form()
     email = str(form.get("email", "")).strip()
     password = str(form.get("password", ""))
@@ -187,11 +172,7 @@ async def forgot_page(request: Request):
 
 
 @router.post("/forgot")
-async def forgot(request: Request, db: Session = Depends(get_db), service: AuthService = Depends(get_auth_service)):
-    from .models import OtpCode
-    from datetime import datetime, timedelta
-    import random
-    from .mailer import send_otp_email
+async def forgot(request: Request, service: AuthService = Depends(get_auth_service)):
 
     form = await request.form()
     email = str(form.get("email", "")).strip()
@@ -210,22 +191,14 @@ async def verify_page(request: Request):
 
 
 @router.post("/verify-otp")
-async def verify_otp(request: Request, db: Session = Depends(get_db)):
+async def verify_otp(request: Request, service: AuthService = Depends(get_auth_service)):
     form = await request.form()
     email = str(form.get("email", "")).strip()
     code = str(form.get("code", "")).strip()
 
-    user = db.query(models.User).filter(models.User.email == email).first()
-    if not user:
-        return templates.TemplateResponse("verify_otp.html", {"request": request, "error": "Invalid email or code"}, status_code=400)
-
-    from .auth import get_latest_valid_otp
-
-    otp = get_latest_valid_otp(db, user.id, code)
-    if not otp:
+    ok = service.verify_otp(email, code, purpose="password_reset")
+    if not ok:
         return templates.TemplateResponse("verify_otp.html", {"request": request, "error": "Invalid or expired code", "email": email}, status_code=400)
-
-    # Do not consume here; proceed to reset with the code
     return RedirectResponse(url=f"/reset?email={email}&code={code}", status_code=status.HTTP_303_SEE_OTHER)
 
 
@@ -238,13 +211,10 @@ async def verify_account_page(request: Request):
 
 
 @router.post("/verify-account")
-async def post_verify_account(request: Request, db: Session = Depends(get_db), service: AuthService = Depends(get_auth_service)):
+async def post_verify_account(request: Request, service: AuthService = Depends(get_auth_service)):
     form = await request.form()
     email = str(form.get("email", "")).strip()
     code = str(form.get("code", "")).strip()
-    user = db.query(models.User).filter(models.User.email == email).first()
-    if not user:
-        return templates.TemplateResponse("verify_account.html", {"request": request, "error": "Invalid email or code", "email": email}, status_code=400)
     ok = service.verify_account(email, code)
     if not ok:
         return templates.TemplateResponse("verify_account.html", {"request": request, "error": "Invalid or expired code", "email": email}, status_code=400)
@@ -252,12 +222,9 @@ async def post_verify_account(request: Request, db: Session = Depends(get_db), s
 
 
 @router.post("/resend-verification")
-async def resend_verification(request: Request, db: Session = Depends(get_db), service: AuthService = Depends(get_auth_service)):
+async def resend_verification(request: Request, service: AuthService = Depends(get_auth_service)):
     form = await request.form()
     email = str(form.get("email", "")).strip()
-    user = db.query(models.User).filter(models.User.email == email).first()
-    if not user:
-        return templates.TemplateResponse("verify_account.html", {"request": request, "email": email, "sent": True})
     status_msg = service.resend_verification(email)
     if status_msg == "already":
         return templates.TemplateResponse("verify_account.html", {"request": request, "email": email, "sent": True})
