@@ -3,12 +3,12 @@ from sqlalchemy.orm import sessionmaker, declarative_base
 from sqlalchemy import text
 from sqlalchemy import inspect as sa_inspect
 
-from .config import DATABASE_URL
+from .core.settings import settings
 
 # Create engine for the configured database (MySQL recommended)
-is_sqlite = DATABASE_URL.startswith("sqlite")
+is_sqlite = settings.DATABASE_URL.startswith("sqlite")
 engine = create_engine(
-    DATABASE_URL,
+    settings.DATABASE_URL,
     pool_pre_ping=True,
     connect_args={"check_same_thread": False} if is_sqlite else {},
 )

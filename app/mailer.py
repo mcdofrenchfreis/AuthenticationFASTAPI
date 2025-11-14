@@ -3,22 +3,15 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from typing import Optional
 
-from .config import (
-    SMTP_HOST,
-    SMTP_PORT,
-    SMTP_USER,
-    SMTP_PASSWORD,
-    SMTP_FROM,
-    SMTP_FROM_NAME,
-)
+from .core.settings import settings
 
 def send_email(to_email: str, subject: str, html_body: str, text_body: Optional[str] = None) -> None:
-    host = SMTP_HOST
-    port = SMTP_PORT
-    user = SMTP_USER
-    password = SMTP_PASSWORD
-    from_addr = SMTP_FROM or user
-    from_name = SMTP_FROM_NAME
+    host = settings.SMTP_HOST
+    port = settings.SMTP_PORT
+    user = settings.SMTP_USER
+    password = settings.SMTP_PASSWORD
+    from_addr = settings.SMTP_FROM or user
+    from_name = settings.SMTP_FROM_NAME
 
     if not (host and port and user and password):
         raise RuntimeError("SMTP is not configured. Please set SMTP credentials via overrides in mailer.py or environment variables.")

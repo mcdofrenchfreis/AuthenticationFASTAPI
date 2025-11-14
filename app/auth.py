@@ -9,7 +9,6 @@ from sqlalchemy.orm import Session
 from . import schemas, models
 from .database import get_db
 from .utils import get_password_hash, verify_password, create_access_token, validate_password_policy
-from .config import ACCESS_TOKEN_EXPIRE_DELTA, OTP_EXP_MINUTES
 from .mailer import send_otp_email, send_verification_email
 from .core.deps import get_auth_service
 from .services.auth_service import AuthService

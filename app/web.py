@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from . import models, schemas
 from .database import get_db
 from .utils import verify_password, get_password_hash, create_access_token, decode_token
-from .config import ACCESS_TOKEN_EXPIRE_DELTA
+from .core.settings import settings
 from .mailer import send_verification_email
 from .core.deps import get_auth_service
 from .services.auth_service import AuthService
@@ -21,7 +21,7 @@ router = APIRouter(tags=["web"])
 templates = Jinja2Templates(directory="app/templates")
 
 AUTH_COOKIE_NAME = "access_token"
-COOKIE_MAX_AGE = int(ACCESS_TOKEN_EXPIRE_DELTA.total_seconds())
+COOKIE_MAX_AGE = int(settings.access_token_expire_delta.total_seconds())
 
 
 def get_current_user_from_cookie(request: Request, db: Session) -> Optional[models.User]:
