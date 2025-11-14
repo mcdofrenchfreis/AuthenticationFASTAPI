@@ -14,7 +14,7 @@ from ..utils import (
     validate_password_policy,
     decode_token,
 )
-from ..mailer import send_otp_email, send_verification_email
+from ..infrastructure.mailer import send_otp_email, send_verification_email
 
 
 @dataclass
