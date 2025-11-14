@@ -33,14 +33,20 @@ A full-stack authentication starter built with FastAPI, SQLAlchemy, and Jinja2 t
 6. Open http://127.0.0.1:8000
 
 ## Project Structure
-- `app/main.py` — FastAPI app factory, DB init, routers
+- `app/main.py` — FastAPI app factory, DB init, routers, static mount
 - `app/database.py` — engine/session setup, Base, lightweight migrations
 - `app/models.py` — SQLAlchemy models (`User`, `OtpCode`)
 - `app/auth.py` — JSON API routes under `/auth/*`
-- `app/web.py` — Web routes and pages (Jinja templates)
-- `app/mailer.py` — SMTP mail sending helpers
+- `app/web_routes/` — Web routes (Jinja2 pages)
+  - `app/web_routes/base.py` — shared router and templates setup
+  - `app/web_routes/pages/` — home and register pages
+  - `app/web_routes/auth/` — login/logout and register POST handlers
+  - `app/web_routes/reset/` — forgot, verify-otp, reset password pages
+  - `app/web_routes/verify/` — account verification page and POST
+  - `app/web_routes/cookies.py` — helpers to set/clear auth cookie
 - `app/templates/*` — HTML templates
-- `app/static/style.css` — Global styles (glassmorphism theme)
+- `app/static/*` — Static assets (CSS, JS, images)
+- `app/infrastructure/mailer.py` — SMTP mail sending helpers
 - `requirements.txt` — Python dependencies (bcrypt pinned)
 
 ## Environment
@@ -98,6 +104,7 @@ Base prefix: `/auth`
 
 ## Running Notes
 - Hot reload is enabled when using `--reload` or `./run.ps1`.
+- Auth cookie name: `access_token` (see `app/web_routes/cookies.py`).
 - If you switch databases, install the required driver and update `DATABASE_URL`.
 - Bcrypt compatibility: we pin `bcrypt==4.0.1` to work with `passlib==1.7.4`.
 
