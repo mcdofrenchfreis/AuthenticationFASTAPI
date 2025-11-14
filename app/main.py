@@ -1,5 +1,4 @@
 from fastapi import FastAPI
-from sqlalchemy.orm import Session
 from fastapi.staticfiles import StaticFiles
 
 from .database import Base, engine, run_migrations
