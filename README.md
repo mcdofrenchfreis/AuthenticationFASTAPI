@@ -44,7 +44,7 @@ A full-stack authentication starter built with FastAPI, SQLAlchemy, and Jinja2 t
 - `requirements.txt` — Python dependencies (bcrypt pinned)
 
 ## Environment
-Configuration is primarily read from environment variables in `app/config.py` (with safe defaults).
+Configuration is centrally managed in `app/core/settings.py` using Pydantic BaseSettings. It automatically reads environment variables and, if present, a `.env` file at the project root.
 
 Recommended variables to set via your shell or a `.env` loader:
 - `AUTH_SECRET_KEY` — secret for JWT signing
@@ -61,7 +61,7 @@ Recommended variables to set via your shell or a `.env` loader:
   - `SMTP_FROM_NAME` (defaults to `Auth App`)
 
 Notes:
-- `app/mailer.py` contains optional override constants (for local/dev). Avoid hardcoding real secrets in source code.
+- Do not hardcode secrets in source code. Prefer setting them via `.env` or environment variables.
 - For Gmail, set up an App Password and use STARTTLS on port 587.
 
 ## Database
