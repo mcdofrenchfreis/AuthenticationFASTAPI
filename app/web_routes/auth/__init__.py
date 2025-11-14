@@ -1,7 +1,8 @@
 from fastapi import Depends, Request, Response, status
 from fastapi.responses import HTMLResponse, RedirectResponse
 
-from ..base import router, templates, AUTH_COOKIE_NAME, COOKIE_MAX_AGE
+from ..base import router, templates
+from ..cookies import set_login_cookie, clear_login_cookie
 from ... import schemas
 from ...core.deps import get_auth_service
 from ...services.auth_service import AuthService
@@ -105,20 +106,12 @@ async def login(request: Request, response: Response, service: AuthService = Dep
     token, _expires = service.create_login_token(user)
 
     resp = RedirectResponse(url="/dashboard", status_code=status.HTTP_303_SEE_OTHER)
-    resp.set_cookie(
-        key=AUTH_COOKIE_NAME,
-        value=token,
-        httponly=True,
-        max_age=COOKIE_MAX_AGE,
-        samesite="lax",
-        secure=False,
-        path="/",
-    )
+    set_login_cookie(resp, token)
     return resp
 
 
 @router.get("/logout")
 async def logout():
     resp = RedirectResponse(url="/", status_code=status.HTTP_303_SEE_OTHER)
-    resp.delete_cookie(AUTH_COOKIE_NAME, path="/")
+    clear_login_cookie(resp)
     return resp
