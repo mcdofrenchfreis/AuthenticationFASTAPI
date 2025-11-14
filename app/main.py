@@ -5,6 +5,7 @@ from .database import Base, engine, run_migrations
 from .models import *  # noqa: F401,F403
 from .auth import router as auth_router
 from .web_routes import router as web_router
+from .core.settings import settings
 
 
 def create_app() -> FastAPI:
@@ -12,6 +13,8 @@ def create_app() -> FastAPI:
 
     @app.on_event("startup")
     def on_startup():
+        # Validate configuration for the current runtime environment
+        settings.validate_for_runtime()
         Base.metadata.create_all(bind=engine)
         run_migrations()
 

@@ -5,6 +5,7 @@ from fastapi.responses import Response
 from .base import AUTH_COOKIE_NAME, COOKIE_MAX_AGE
 from ..services.auth_service import AuthService
 from .. import models
+from ..core.settings import settings
 
 
 def get_token_from_request(request: Request) -> Optional[str]:
@@ -24,8 +25,8 @@ def set_login_cookie(response: Response, token: str) -> None:
         value=token,
         httponly=True,
         max_age=COOKIE_MAX_AGE,
-        samesite="lax",
-        secure=False,
+        samesite=settings.AUTH_COOKIE_SAMESITE,
+        secure=settings.AUTH_COOKIE_SECURE,
         path="/",
     )
 

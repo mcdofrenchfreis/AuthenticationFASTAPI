@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta
 from typing import Optional
+from uuid import uuid4
 
 from jose import JWTError, jwt
 from passlib.context import CryptContext
@@ -19,8 +20,18 @@ def get_password_hash(password: str) -> str:
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
     to_encode = data.copy()
-    expire = datetime.utcnow() + (expires_delta or timedelta(minutes=60))
-    to_encode.update({"exp": expire})
+    now = datetime.utcnow()
+    expire = now + (expires_delta or timedelta(minutes=60))
+
+    # Standard registered claims
+    to_encode.setdefault("iat", now)
+    to_encode.setdefault("jti", str(uuid4()))
+    to_encode["exp"] = expire
+
+    # Optional issuer metadata
+    if settings.AUTH_ISSUER:
+        to_encode.setdefault("iss", settings.AUTH_ISSUER)
+
     encoded_jwt = jwt.encode(to_encode, settings.AUTH_SECRET_KEY, algorithm=settings.AUTH_ALGORITHM)
     return encoded_jwt
 
