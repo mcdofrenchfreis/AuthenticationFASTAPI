@@ -20,6 +20,20 @@ from .adapters.auth_adapter import (
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
+def get_auth_router() -> APIRouter:
+    """Return the JSON auth APIRouter for integration into other FastAPI apps.
+
+    Example:
+
+        from fastapi import FastAPI
+        from fastapi_auth_kit.app.auth import get_auth_router
+
+        app = FastAPI()
+        app.include_router(get_auth_router())
+    """
+    return router
+
+
 # Simple in-memory rate limiting for login attempts.
 # This is process-local and intended as a lightweight safeguard for small deployments.
 _LOGIN_ATTEMPTS: Dict[Tuple[str, str], List[float]] = {}

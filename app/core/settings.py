@@ -47,6 +47,14 @@ class Settings(BaseSettings):
     def is_dev(self) -> bool:
         return self.ENV.lower() == "dev"
 
+    @property
+    def is_stage(self) -> bool:
+        return self.ENV.lower() == "stage"
+
+    @property
+    def is_prod(self) -> bool:
+        return self.ENV.lower() == "prod"
+
     def validate_for_runtime(self) -> None:
         """Perform basic security checks based on the current environment.
 

@@ -11,8 +11,8 @@ from ..domain.errors import (
     PasswordPolicyError,
     InvalidCredentialsError,
     OtpInvalidOrExpiredError,
-    AccountAlreadyVerifiedError,
 )
+from ..domain.results import ResendVerificationResult, ResendVerificationStatus
 from ..infrastructure.mailer import send_otp_email, send_verification_email
 
 
@@ -65,12 +65,11 @@ def request_password_reset_web(email: str, service: AuthService, background_task
 
 
 def resend_verification_web(email: str, service: AuthService, background_tasks: BackgroundTasks) -> None:
-    try:
-        code = service.resend_verification(email)
-    except AccountAlreadyVerifiedError:
-        return None
+    result: ResendVerificationResult = service.resend_verification(email)
 
-    if code:
-        background_tasks.add_task(send_verification_email, email, code)
+    if result.status is ResendVerificationStatus.SENT and result.code:
+        background_tasks.add_task(send_verification_email, email, result.code)
 
+    # For USER_NOT_FOUND and ALREADY_VERIFIED we do not show different UI; the page
+    # still renders with `sent=True` to avoid leaking account existence.
     return None

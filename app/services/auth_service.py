@@ -12,6 +12,7 @@ from ..domain.errors import (
     OtpInvalidOrExpiredError,
     AccountAlreadyVerifiedError,
 )
+from ..domain.results import ResendVerificationResult, ResendVerificationStatus
 from ..core.settings import Settings
 from .. import models, schemas
 from ..utils import (
@@ -127,19 +128,20 @@ class AuthService:
         self.user_repo.mark_verified(user)
         return None
 
-    def resend_verification(self, email: str) -> Optional[str]:
-        """Create a new verification OTP for the user and return the code.
+    def resend_verification(self, email: str) -> ResendVerificationResult:
+        """Create a new verification OTP for the user and return a result object.
 
-        Returns None if the user does not exist. Raises AccountAlreadyVerifiedError
-        if the account is already verified.
+        - If the user does not exist, returns status USER_NOT_FOUND (no code).
+        - If the account is already verified, returns status ALREADY_VERIFIED.
+        - Otherwise, creates a new OTP and returns status SENT with the code.
         """
         user = self.user_repo.get_by_email(email)
         if not user:
-            # For security, behave as though we sent an email even if the user does not exist.
-            return None
+            # For security, callers typically behave as if an email was sent.
+            return ResendVerificationResult(status=ResendVerificationStatus.USER_NOT_FOUND)
         if user.is_verified:
-            raise AccountAlreadyVerifiedError("Account already verified")
+            return ResendVerificationResult(status=ResendVerificationStatus.ALREADY_VERIFIED)
         code = f"{random.randint(0, 999999):06d}"
         expires_at = datetime.utcnow() + self.settings.otp_expire_delta
         self.otp_repo.create_otp(user_id=user.id, code=code, expires_at=expires_at, purpose="verify")
-        return code
+        return ResendVerificationResult(status=ResendVerificationStatus.SENT, code=code)

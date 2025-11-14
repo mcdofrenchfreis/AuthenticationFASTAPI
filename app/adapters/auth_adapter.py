@@ -7,8 +7,8 @@ from ..domain.errors import (
     PasswordPolicyError,
     InvalidCredentialsError,
     OtpInvalidOrExpiredError,
-    AccountAlreadyVerifiedError,
 )
+from ..domain.results import ResendVerificationResult, ResendVerificationStatus
 from ..infrastructure.mailer import send_otp_email, send_verification_email
 
 
@@ -68,12 +68,13 @@ def request_password_reset_api(email: str, service: AuthService, background_task
 
 
 def resend_verification_api(email: str, service: AuthService, background_tasks: BackgroundTasks) -> dict:
-    try:
-        code = service.resend_verification(email)
-    except AccountAlreadyVerifiedError:
+    result: ResendVerificationResult = service.resend_verification(email)
+
+    if result.status is ResendVerificationStatus.ALREADY_VERIFIED:
         return {"message": "Account already verified"}
 
-    if code:
-        background_tasks.add_task(send_verification_email, email, code)
+    if result.status is ResendVerificationStatus.SENT and result.code:
+        background_tasks.add_task(send_verification_email, email, result.code)
 
+    # For USER_NOT_FOUND and SENT, behave as though an email was sent without revealing user existence.
     return {"message": "If the email exists, a verification code has been sent."}
