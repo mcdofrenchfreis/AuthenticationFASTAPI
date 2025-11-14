@@ -1,10 +1,11 @@
 import re
-from fastapi import Depends, Request, status
+from fastapi import BackgroundTasks, Depends, Request, status
 from fastapi.responses import HTMLResponse, RedirectResponse
 
 from ..base import router, templates
 from ...core.deps import get_auth_service
 from ...services.auth_service import AuthService
+from ...adapters.web_auth_adapter import verify_otp_web, reset_password_web, request_password_reset_web
 
 
 @router.get("/forgot", response_class=HTMLResponse)
@@ -13,11 +14,11 @@ async def forgot_page(request: Request):
 
 
 @router.post("/forgot")
-async def forgot(request: Request, service: AuthService = Depends(get_auth_service)):
+async def forgot(request: Request, background_tasks: BackgroundTasks, service: AuthService = Depends(get_auth_service)):
     form = await request.form()
     email = str(form.get("email", "")).strip()
 
-    service.request_password_reset(email)
+    request_password_reset_web(email, service, background_tasks)
     return RedirectResponse(url=f"/verify-otp?email={email}&sent=1", status_code=status.HTTP_303_SEE_OTHER)
 
 
@@ -35,9 +36,9 @@ async def verify_otp(request: Request, service: AuthService = Depends(get_auth_s
     email = str(form.get("email", "")).strip()
     code = str(form.get("code", "")).strip()
 
-    ok = service.verify_otp(email, code, purpose="password_reset")
-    if not ok:
-        return templates.TemplateResponse("verify_otp.html", {"request": request, "error": "Invalid or expired code", "email": email}, status_code=400)
+    error = verify_otp_web(email, code, purpose="password_reset", service=service)
+    if error:
+        return templates.TemplateResponse("verify_otp.html", {"request": request, "error": error, "email": email}, status_code=400)
     return RedirectResponse(url=f"/reset?email={email}&code={code}", status_code=status.HTTP_303_SEE_OTHER)
 
 
@@ -76,8 +77,8 @@ async def reset_password(request: Request, service: AuthService = Depends(get_au
     if re.search(r"\s", new_password):
         return pw_invalid("Password must not contain spaces")
 
-    ok = service.reset_password(email, code, new_password)
-    if not ok:
-        return templates.TemplateResponse("reset_password.html", {"request": request, "error": "Invalid email or code", "email": email, "code": code}, status_code=400)
+    error = reset_password_web(email, code, new_password, service)
+    if error:
+        return templates.TemplateResponse("reset_password.html", {"request": request, "error": error, "email": email, "code": code}, status_code=400)
 
     return RedirectResponse(url="/login?reset=1", status_code=status.HTTP_303_SEE_OTHER)

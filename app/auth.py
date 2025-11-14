@@ -1,12 +1,21 @@
 from typing import Optional, Dict, List, Tuple
 from time import time
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
 
 from . import schemas, models
 from .core.deps import get_auth_service
 from .services.auth_service import AuthService
+from .adapters.auth_adapter import (
+    register_user_api,
+    login_api,
+    verify_otp_api,
+    reset_password_api,
+    verify_account_api,
+    request_password_reset_api,
+    resend_verification_api,
+)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -55,12 +64,9 @@ def _check_and_track_login_attempt(ip: str, email: str, success: bool) -> None:
 
 
 @router.post("/register", response_model=schemas.UserOut)
-def register(payload: schemas.UserCreate, service: AuthService = Depends(get_auth_service)):
-    try:
-        user = service.register_user(payload)
-        return user
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+def register(payload: schemas.UserCreate, background_tasks: BackgroundTasks, service: AuthService = Depends(get_auth_service)):
+    user = register_user_api(payload, service, background_tasks)
+    return user
 
 
 @router.post("/login", response_model=schemas.Token)
@@ -70,57 +76,46 @@ def login(
     service: AuthService = Depends(get_auth_service),
 ):
     client_ip = request.client.host if request.client else ""
-
-    user = service.authenticate(form_data.username, form_data.password)
-    if not user:
-        _check_and_track_login_attempt(client_ip, form_data.username, success=False)
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
-
-    if not user.is_verified:
-        # Treat unverified login attempts as failures for rate limiting
-        _check_and_track_login_attempt(client_ip, form_data.username, success=False)
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account not verified")
+    # Let adapter handle authentication and domain > HTTPException mapping.
+    try:
+        token, expires_in = login_api(form_data.username, form_data.password, service)
+    except HTTPException as exc:
+        # Track failed attempts for 401/403 responses
+        if exc.status_code in (status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN):
+            _check_and_track_login_attempt(client_ip, form_data.username, success=False)
+        raise
 
     # Successful login clears the attempt history for this IP/email
     _check_and_track_login_attempt(client_ip, form_data.username, success=True)
 
-    token, expires_in = service.create_login_token(user)
     return {"access_token": token, "token_type": "bearer", "expires_in": expires_in}
 
 
 @router.post("/forgot-password")
-def forgot_password(payload: schemas.ForgotPasswordRequest, service: AuthService = Depends(get_auth_service)):
-    service.request_password_reset(payload.email)
+def forgot_password(payload: schemas.ForgotPasswordRequest, background_tasks: BackgroundTasks, service: AuthService = Depends(get_auth_service)):
+    request_password_reset_api(payload.email, service, background_tasks)
     return {"message": "If the email exists, an OTP has been sent."}
 
 
 @router.post("/verify-otp")
 def verify_otp(payload: schemas.VerifyOtpRequest, service: AuthService = Depends(get_auth_service)):
-    ok = service.verify_otp(payload.email, payload.code, purpose="password_reset")
-    if not ok:
-        raise HTTPException(status_code=400, detail="Invalid or expired code")
+    verify_otp_api(payload.email, payload.code, service, purpose="password_reset")
     return {"message": "OTP verified"}
 
 
 @router.post("/reset-password")
 def reset_password(payload: schemas.ResetPasswordRequest, service: AuthService = Depends(get_auth_service)):
-    ok = service.reset_password(payload.email, payload.code, payload.new_password)
-    if not ok:
-        raise HTTPException(status_code=400, detail="Invalid email or code")
+    reset_password_api(payload.email, payload.code, payload.new_password, service)
     return {"message": "Password has been reset"}
 
 
 @router.post("/verify-account")
 def verify_account(payload: schemas.VerifyOtpRequest, service: AuthService = Depends(get_auth_service)):
-    ok = service.verify_account(payload.email, payload.code)
-    if not ok:
-        raise HTTPException(status_code=400, detail="Invalid or expired code")
+    verify_account_api(payload.email, payload.code, service)
     return {"message": "Account verified"}
 
 
 @router.post("/resend-verification")
-def resend_verification(payload: schemas.ForgotPasswordRequest, service: AuthService = Depends(get_auth_service)):
-    status_msg = service.resend_verification(payload.email)
-    if status_msg == "already":
-        return {"message": "Account already verified"}
-    return {"message": "If the email exists, a verification code has been sent."}
+def resend_verification(payload: schemas.ForgotPasswordRequest, background_tasks: BackgroundTasks, service: AuthService = Depends(get_auth_service)):
+    result = resend_verification_api(payload.email, service, background_tasks)
+    return result

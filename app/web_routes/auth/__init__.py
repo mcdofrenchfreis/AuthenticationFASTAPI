@@ -1,4 +1,4 @@
-from fastapi import Depends, Request, Response, status
+from fastapi import BackgroundTasks, Depends, Request, Response, status
 from fastapi.responses import HTMLResponse, RedirectResponse
 
 from ..base import router, templates
@@ -6,10 +6,11 @@ from ..cookies import set_login_cookie, clear_login_cookie
 from ... import schemas
 from ...core.deps import get_auth_service
 from ...services.auth_service import AuthService
+from ...adapters.web_auth_adapter import register_web, login_web
 
 
 @router.post("/register")
-async def register(request: Request, service: AuthService = Depends(get_auth_service)):
+async def register(request: Request, background_tasks: BackgroundTasks, service: AuthService = Depends(get_auth_service)):
     form = await request.form()
     email = str(form.get("email", "")).strip()
     first_name = str(form.get("first_name", "")).strip()
@@ -57,14 +58,13 @@ async def register(request: Request, service: AuthService = Depends(get_auth_ser
             },
             status_code=400,
         )
-    try:
-        service.register_user(payload)
-    except ValueError as e:
+    error = register_web(payload, service, background_tasks)
+    if error:
         return templates.TemplateResponse(
             "register.html",
             {
                 "request": request,
-                "error": str(e),
+                "error": error,
                 "email": email,
                 "first_name": first_name,
                 "middle_name": middle_name,
@@ -96,9 +96,9 @@ async def login(request: Request, response: Response, service: AuthService = Dep
     email = str(form.get("email", "")).strip()
     password = str(form.get("password", ""))
 
-    user = service.authenticate(email, password)
-    if not user:
-        return templates.TemplateResponse("login.html", {"request": request, "error": "Invalid credentials", "email": email}, status_code=401)
+    user, error = login_web(email, password, service)
+    if error or not user:
+        return templates.TemplateResponse("login.html", {"request": request, "error": error or "Invalid credentials", "email": email}, status_code=401)
 
     if not user.is_verified:
         return templates.TemplateResponse("login.html", {"request": request, "error": "Please verify your account. We sent a code to your email.", "email": email}, status_code=403)
