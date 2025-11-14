@@ -1,30 +1,13 @@
-from datetime import datetime, timedelta
-import random
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
-from sqlalchemy.orm import Session
+from fastapi.security import OAuth2PasswordRequestForm
 
 from . import schemas, models
-from .database import get_db
-from .utils import get_password_hash, verify_password, create_access_token, validate_password_policy
-from .mailer import send_otp_email, send_verification_email
 from .core.deps import get_auth_service
 from .services.auth_service import AuthService
 
 router = APIRouter(prefix="/auth", tags=["auth"])
-
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
-
-
-def authenticate_user(db: Session, email: str, password: str) -> Optional[models.User]:
-    user = db.query(models.User).filter(models.User.email == email).first()
-    if not user:
-        return None
-    if not verify_password(password, user.hashed_password):
-        return None
-    return user
 
 
 @router.post("/register", response_model=schemas.UserOut)
@@ -51,22 +34,6 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), service: AuthService
 def forgot_password(payload: schemas.ForgotPasswordRequest, service: AuthService = Depends(get_auth_service)):
     service.request_password_reset(payload.email)
     return {"message": "If the email exists, an OTP has been sent."}
-
-
-def get_latest_valid_otp(db: Session, user_id: int, code: str, purpose: Optional[str] = None):
-    otp = (
-        db.query(models.OtpCode)
-        .filter(
-            models.OtpCode.user_id == user_id,
-            models.OtpCode.code == code,
-            models.OtpCode.consumed == False,  # noqa: E712
-            models.OtpCode.expires_at > datetime.utcnow(),
-            *( [models.OtpCode.purpose == purpose] if purpose else [] ),
-        )
-        .order_by(models.OtpCode.created_at.desc())
-        .first()
-    )
-    return otp
 
 
 @router.post("/verify-otp")

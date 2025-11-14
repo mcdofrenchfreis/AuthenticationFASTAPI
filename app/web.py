@@ -7,10 +7,8 @@ from importlib import resources as importlib_resources
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
-from sqlalchemy.orm import Session
 
 from . import models, schemas
-from .database import get_db
 from .utils import decode_token
 from .core.settings import settings
 from .core.deps import get_auth_service
@@ -233,7 +231,7 @@ async def reset_page(request: Request):
 
 
 @router.post("/reset")
-async def reset_password(request: Request, db: Session = Depends(get_db), service: AuthService = Depends(get_auth_service)):
+async def reset_password(request: Request, service: AuthService = Depends(get_auth_service)):
     form = await request.form()
     email = str(form.get("email", "")).strip()
     code = str(form.get("code", "")).strip()
