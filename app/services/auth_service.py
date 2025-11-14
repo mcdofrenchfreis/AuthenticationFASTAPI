@@ -12,6 +12,7 @@ from ..utils import (
     verify_password,
     create_access_token,
     validate_password_policy,
+    decode_token,
 )
 from ..mailer import send_otp_email, send_verification_email
 
@@ -63,6 +64,19 @@ class AuthService:
         )
         return token, int(self.settings.access_token_expire_delta.total_seconds())
 
+    def get_user_from_token(self, token: str) -> Optional[models.User]:
+        payload = decode_token(token)
+        if not payload:
+            return None
+        sub = payload.get("sub")
+        if not sub:
+            return None
+        try:
+            user_id = int(sub)
+        except (TypeError, ValueError):
+            return None
+        return self.user_repo.get_by_id(user_id)
+
     # OTP flows
     def request_password_reset(self, email: str) -> None:
         user = self.user_repo.get_by_email(email)
@@ -84,14 +98,15 @@ class AuthService:
         otp = self.otp_repo.latest_valid(user_id=user.id, code=code, purpose=purpose)
         if not otp:
             return False
-        self.otp_repo.consume(otp)
+        # Do not consume here; only validate existence. Consumption happens at the action step (e.g., reset_password).
         return True
 
     def reset_password(self, email: str, code: str, new_password: str) -> bool:
         user = self.user_repo.get_by_email(email)
         if not user:
             return False
-        otp = self.otp_repo.latest_valid(user_id=user.id, code=code, purpose=None)
+        # Ensure the OTP is specifically for password reset and is still valid
+        otp = self.otp_repo.latest_valid(user_id=user.id, code=code, purpose="password_reset")
         if not otp:
             return False
         self.otp_repo.consume(otp)

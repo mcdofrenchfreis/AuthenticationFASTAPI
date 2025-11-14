@@ -25,17 +25,11 @@ AUTH_COOKIE_NAME = "access_token"
 COOKIE_MAX_AGE = int(settings.access_token_expire_delta.total_seconds())
 
 
-def get_current_user_from_cookie(request: Request, db: Session) -> Optional[models.User]:
+def get_current_user_from_cookie(request: Request, service: AuthService) -> Optional[models.User]:
     token = request.cookies.get(AUTH_COOKIE_NAME)
     if not token:
         return None
-    payload = decode_token(token)
-    if not payload:
-        return None
-    user_id = payload.get("sub")
-    if not user_id:
-        return None
-    return db.query(models.User).filter(models.User.id == int(user_id)).first()
+    return service.get_user_from_token(token)
 
 
 @router.get("/", response_class=HTMLResponse)
@@ -277,8 +271,8 @@ async def reset_password(request: Request, db: Session = Depends(get_db), servic
 
 
 @router.get("/dashboard", response_class=HTMLResponse)
-async def dashboard(request: Request, db: Session = Depends(get_db)):
-    user = get_current_user_from_cookie(request, db)
+async def dashboard(request: Request, service: AuthService = Depends(get_auth_service)):
+    user = get_current_user_from_cookie(request, service)
     if not user:
         return RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
     return templates.TemplateResponse("dashboard.html", {"request": request, "user": user})
